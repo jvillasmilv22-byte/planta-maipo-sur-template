@@ -1,4 +1,5 @@
 name: seguridad-planta
+
 on:
   workflow_dispatch:
   push:
@@ -14,14 +15,60 @@ jobs:
       PLC_PASSWORD: ${{ secrets.PLC_PASSWORD }}
     steps:
       - name: Descargar repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 1
 
+      # ---- Control 1: Código propio ----
       - name: Buscar secretos
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Instalar Semgrep
+        run: pip install semgrep
+
+      - name: Revisar código propio
+        run: semgrep scan --config .semgrep.yml --error .
+
+      # ---- Control 2: Código prestado (dependencias) ----
+      - name: Revisar dependencias con Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Revisar dependencias con OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            -r
+            ./
+
+      - name: Generar SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Guardar SBOM
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+      # ---- Control 3: Configuración ----
+      - name: Revisar configuración con Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
       - name: Prueba funcional
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python scripts/prueba_funcional.py
