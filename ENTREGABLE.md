@@ -46,12 +46,14 @@ Persona operadora → servicio/HMI (`lector_cloro.py`) → controlador / proceso
 - Responsable y fecha: José Villasmil · 15-10-2026
 
 ## 6. Parche de IA (Propuesta #7 – "arregla la lectura del controlador")
-- Paquete verificado: **No.** `plc_helper_utils` no está verificado en el registro oficial (PyPI) ni en el repositorio. Evidencia: [captura o enlace de la búsqueda en pypi.org]. Un paquete que no se puede verificar puede ser inventado o suplantado.
-- Tratamiento de entradas: **Inseguro.** `subprocess.run(..., shell=True)` con texto concatenado permite inyectar comandos.
-- Protecciones desactivadas: **Sí.** `requests.post(..., verify=False)` desactiva la validación TLS.
-- Destino de datos: **No justificado.** `requests.post(TELEMETRIA, ...)` envía la salida a un destino sin autorización ni justificación.
-- Veredicto y evidencia: **RECHAZAR el parche en su estado actual.** Que funcione no basta: combina paquete no verificado, ejecución de shell con entrada concatenada, TLS desactivado y salida de datos injustificada. Evidencia: pestaña Files changed de la PR #7 y regla Semgrep `python-shell-true` / `python-tls-sin-validar` si se ejecutan sobre la rama `propuesta-ia`. La PR no se fusionó.
-- Explicación para el operador (redactada con IA y revisada por el equipo): [PEGAR 2 FRASES]
+Pull request revisado, sin fusionar: https://github.com/jvillasmilv22-byte/planta-maipo-sur-template/pull/1 (PR de práctica creado por el equipo según el Anexo A.12 de la guía, porque el facilitador no estaba disponible). Archivo cambiado: `lector_cloro.py` (+21 −2).
+
+- Paquete verificado: **No.** La línea 6 importa `plc_helper_utils` (`from plc_helper_utils import normalizar_lectura`). Ese paquete no está en el repositorio ni en `requirements.txt`, y **no existe en el registro oficial (PyPI)**. Evidencia (15-10-2026): la búsqueda de `plc_helper_utils` en pypi.org no muestra ningún resultado con ese nombre exacto (`evidencias/pypi_busqueda.png`) y la dirección https://pypi.org/project/plc-helper-utils/ devuelve error 404 (`evidencias/pypi_404.png`). Un paquete inexistente suele ser un nombre inventado por la IA; si alguien lo registrara después con código malicioso, el parche lo instalaría sin que nadie lo note.
+- Tratamiento de entradas: **Inseguro.** La línea 16 hace `subprocess.run("echo lectura " + canal, shell=True, ...)`: une texto recibido (`canal`) a un comando y lo ejecuta en la shell, por lo que se podrían inyectar comandos.
+- Protecciones desactivadas: **Sí.** La línea 23 usa `requests.post(TELEMETRIA, json=lectura, verify=False)`: `verify=False` desactiva la validación del certificado TLS.
+- Destino de datos: **No justificado.** La línea 8 define `TELEMETRIA = "https://telemetria.example.invalid/api/lecturas"` y la línea 23 le envía la lectura. No hay autorización, justificación ni explicación de por qué los datos salen de la planta.
+- Veredicto y evidencia: **RECHAZAR el parche en su estado actual.** Que funcione no basta: combina paquete no verificado, ejecución de shell con entrada concatenada, TLS desactivado y salida de datos injustificada. Evidencia: pestaña Files changed del pull request #1, líneas 6, 8, 16 y 23. El pull request no se fusionó.
+- Explicación para el operador (redactada con IA y revisada por el equipo): "Este parche ejecuta comandos armados con texto externo y envía las lecturas de cloro a un servidor sin comprobar que sea el verdadero, además de usar un paquete que no pudimos verificar. Si alguien lo aprovecha, la lectura de cloro que usted ve podría ser falsa o quedar expuesta, y en una planta real eso podría llevar a ajustar la dosis con datos equivocados."
 
 ## 7. Pendientes para un sistema real
 - Rotar y revocar la credencial real, revisar accesos y limpiar el historial de Git con un procedimiento controlado.
